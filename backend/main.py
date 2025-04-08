@@ -3,11 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
 app = FastAPI()
-
 # Enable CORS for all domains (for testing)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -18,6 +18,7 @@ VISITS = []
 @app.post("/track")
 async def track(request: Request):
     data = await request.json()
+    print("📩 Tracking data received:", data)
     visitor = {
         "ip": request.client.host,
         "user_agent": data.get("userAgent"),

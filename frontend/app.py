@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 # Set this to your Codespace public URL or localhost
-BACKEND_URL = "http://localhost:8000/data"
+BACKEND_URL = "https://automatic-journey-xx7xvp79qrpfpr5p-8000.app.github.dev/data"
 
 st.title("📊 Visitor Analytics Demo")
 
