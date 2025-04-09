@@ -1,19 +1,57 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from user_agents import parse as ua_parse
 import requests
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
+from starlette.responses import Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from models import Base, Visit, Website
 
 engine = create_engine("sqlite:///./tracker.db")
 SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(bind=engine)
 
+import os
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+
 
 app = FastAPI()
 
+# Middleware to handle CORS()
+class CustomCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        method = request.method
+        # print("🧾 Request origin:", origin)
+        allowed_origin = False
+        if origin:
+            db = SessionLocal()
+            domains = [w.domain.rstrip("/") for w in db.query(Website).all()]
+            db.close()
+            origin_hostname = origin.replace("http://", "").replace("https://", "").split(":")[0]
+            if origin.rstrip("/") in domains or origin_hostname in domains:
+                allowed_origin = True
+        # Allow Options method for preflight requests
+        if method == "OPTIONS":
+            response = Response(status_code=204)
+        else:
+            response: Response = await call_next(request)
+
+        if allowed_origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+
+        return response
+    
+# Add the CORS middleware to the app
+app.add_middleware(CustomCORSMiddleware)
+
+# Uncomment the following lines if you want to allow all origins
+'''
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,6 +59,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+'''
 
 def get_geo_data(ip):
     try:
@@ -31,9 +70,11 @@ def get_geo_data(ip):
     except:
         return {}
 
+# Register websites 
 @app.post("/register")
 async def register_site(data: dict):
     db = SessionLocal()
+    # domain = data.get("domain")
     raw_domain = data.get("domain")
     parsed = requests.utils.urlparse(raw_domain)
     domain = parsed.hostname or raw_domain # # extracts "127.0.0.1" from "http://127.0.0.1"
@@ -48,18 +89,43 @@ async def register_site(data: dict):
     db.add(website)
     db.commit()
     db.close()
-    return {"status": "registered", "message": "Website registered successfully"}  # ✅ Added message
 
+    script = f'<script async src="{API_BASE_URL}/tracker.js" data-site="{domain}"></script>'
+    return {"status": "registered", "script": script, "message": "Website registered successfully"}  # ✅ Added message
+
+@app.get("/tracker.js", response_class=HTMLResponse)
+def serve_tracker_script():
+    js_code = """
+    (function () {
+        const data = {
+            userAgent: navigator.userAgent,
+            screen: `${screen.width}x${screen.height}`,
+            url: location.href,
+            referrer: document.referrer,
+            time: new Date().toISOString(),
+            site: document.currentScript.getAttribute("data-site").replace(/\/$/, "")
+        };
+
+        fetch("http://127.0.0.1:8000/track", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        }).then(res => res.json()).then(console.log).catch(console.error);
+    })();
+    """
+    return HTMLResponse(content=js_code, media_type="application/javascript")
 
 @app.post("/track")
 async def track(request: Request):
     data = await request.json()
     # print("📥 Incoming tracking data:", data)  # ✅ Debug
-
+    origin = request.headers.get("origin")
+    
+    print("🧾 Request origin:", origin)
     db = SessionLocal()
-    domain = data.get("site")
-    # print("🌐 Tracking domain:", domain)
-    # print("🧠 Registered domains:", [w.domain for w in db.query(Website).all()])
+    domain = data.get("site").rstrip("/")  # Remove trailing slash if present
+    print("🌐 Tracking domain:", domain)
+    print("🧠 Registered domains:", [w.domain for w in db.query(Website).all()])
     website = db.query(Website).filter_by(domain=domain).first()
 
     print("🔍 Website matched:", website)  # ✅ Debug
@@ -101,7 +167,14 @@ async def track(request: Request):
     return {"status": "tracked"}
 
 
-
+@app.get("/websites")
+async def get_websites():
+    db = SessionLocal()
+    websites = db.query(Website).all()
+    db.close()
+    domains = [w.domain.rstrip("/") for w in db.query(Website).all()]
+    print("🌐 Registered domains:", domains)
+    return [{"domain": w.domain, "name": w.name} for w in websites]
 
 @app.get("/data/{name}")
 async def get_data(name: str):
@@ -114,14 +187,6 @@ async def get_data(name: str):
     visits = db.query(Visit).filter_by(website_id=website.id).all()
     db.close()
     return [v.__dict__ for v in visits]
-
-
-@app.get("/websites")
-async def get_websites():
-    db = SessionLocal()
-    websites = db.query(Website).all()
-    db.close()
-    return [{"domain": w.domain, "name": w.name} for w in websites]
 
 @app.get("/debug/visits")
 def debug_visits():
