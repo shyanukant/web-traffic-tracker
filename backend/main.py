@@ -34,7 +34,9 @@ def get_geo_data(ip):
 @app.post("/register")
 async def register_site(data: dict):
     db = SessionLocal()
-    domain = data.get("domain")
+    raw_domain = data.get("domain")
+    parsed = requests.utils.urlparse(raw_domain)
+    domain = parsed.hostname or raw_domain # # extracts "127.0.0.1" from "http://127.0.0.1"
     name = data.get("name")
 
     existing = db.query(Website).filter_by(domain=domain).first()
@@ -52,12 +54,14 @@ async def register_site(data: dict):
 @app.post("/track")
 async def track(request: Request):
     data = await request.json()
-    print("📥 Incoming tracking data:", data)  # ✅ Debug
+    # print("📥 Incoming tracking data:", data)  # ✅ Debug
 
     db = SessionLocal()
     domain = data.get("site")
-
+    # print("🌐 Tracking domain:", domain)
+    # print("🧠 Registered domains:", [w.domain for w in db.query(Website).all()])
     website = db.query(Website).filter_by(domain=domain).first()
+
     print("🔍 Website matched:", website)  # ✅ Debug
 
     if not website:
