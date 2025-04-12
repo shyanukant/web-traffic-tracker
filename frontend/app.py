@@ -3,7 +3,9 @@ import pandas as pd
 import requests
 from streamlit_autorefresh import st_autorefresh
 import os
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+# API_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+API_URL = "https://traffic-tracker.onrender.com/"
+print(f"API_URL: {API_URL}")  # Debugging line to check the API URL
   # Adjust this if your API is hosted elsewhere
 st.set_page_config(page_title="📈 Visitor Tracker Dashboard", layout="wide")
 st.title("🔍 Web Traffic Dashboard")
@@ -15,7 +17,7 @@ with st.form("register_form"):
     submitted = st.form_submit_button("Register")
 
     if submitted:
-        response = requests.post(f"{API_BASE_URL}/register", json={"name": name, "domain": domain})
+        response = requests.post(f"{API_URL}/register", json={"name": name, "domain": domain})
         resp = response.json()
         st.success(resp.get("message", "Done"))
         if resp.get("status") == "registered":
@@ -40,7 +42,7 @@ if st.session_state.get("script_activated", False):
 
 # Fetch list of websites
 try:
-    websites = requests.get(f"{API_BASE_URL}/websites").json()
+    websites = requests.get(f"{API_URL}/websites").json()
     domain_options = {w['name']: w['domain'] for w in websites}
 except:
     domain_options = {}
@@ -51,13 +53,13 @@ if domain_options:
     selected_domain = domain_options[selected_name]
     if selected_name:
         st.subheader("📎 Tracking Script")
-        script = f'<script async src="{API_BASE_URL}/tracker.js" data-site="{selected_domain}"></script>'
+        script = f'<script async src="{API_URL}/tracker.js" data-site="{selected_domain}"></script>'
         st.code(script, language="javascript")
         st.info("Copy this into the <head> of your site if you haven't yet.")
     
     # Fetch traffic data for selected website by name
     try:
-        data = requests.get(f"{API_BASE_URL}/data/{selected_name}").json()
+        data = requests.get(f"{API_URL}/data/{selected_name}").json()
         if data and isinstance(data, list):
             df = pd.DataFrame(data)
             df = df.drop(columns=['_sa_instance_state'], errors='ignore')
