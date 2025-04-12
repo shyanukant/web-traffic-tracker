@@ -4,7 +4,7 @@ import requests
 from streamlit_autorefresh import st_autorefresh
 import os
 # API_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
-API_URL = "https://traffic-tracker.onrender.com/"
+API_URL = "https://traffic-tracker.onrender.com"
 print(f"API_URL: {API_URL}")  # Debugging line to check the API URL
   # Adjust this if your API is hosted elsewhere
 st.set_page_config(page_title="📈 Visitor Tracker Dashboard", layout="wide")
@@ -53,7 +53,7 @@ if domain_options:
     selected_domain = domain_options[selected_name]
     if selected_name:
         st.subheader("📎 Tracking Script")
-        script = f'<script async src="{API_URL}/tracker.js" data-site="{selected_domain}"></script>'
+        script = f'<script async src="{API_URL}/tracker" data-site="{selected_domain}"></script>'
         st.code(script, language="javascript")
         st.info("Copy this into the <head> of your site if you haven't yet.")
     
