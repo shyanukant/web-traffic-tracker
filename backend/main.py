@@ -1,23 +1,25 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from user_agents import parse as ua_parse
 import requests
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
 from starlette.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from models import Base, Visit, Website
+from database.models import Base, Visit, Website, User
+from database.database import SessionLocal, engine
+from auth.routes import get_current_user
+from auth.routes import router
+from fastapi.security import OAuth2PasswordRequestForm
+from auth.auth_handler import create_access_token
 
-engine = create_engine("sqlite:///./tracker.db")
-SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 import os
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
-
 app = FastAPI()
+app.include_router(router, prefix="/auth", tags=["Authentication"])
+
 
 # Middleware to handle CORS()
 class CustomCORSMiddleware(BaseHTTPMiddleware):
@@ -69,6 +71,20 @@ def get_geo_data(ip):
         return response.json()
     except:
         return {}
+
+# token route
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Replace this with DB user check
+    if form_data.username != "user" or form_data.password != "user123":
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+
+    access_token = create_access_token(data={"sub": form_data.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/dashboard")
+def dashboard(current_user: User = Depends(get_current_user)):
+    return {"message": f"Hello {current_user.username}, welcome to your dashboard!"}
 
 # Register websites 
 @app.post("/register")
