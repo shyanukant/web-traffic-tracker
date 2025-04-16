@@ -7,10 +7,8 @@ from starlette.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from database.models import Base, Visit, Website, User
 from database.database import SessionLocal, engine
-from auth.routes import get_current_user
 from auth.routes import router
-from fastapi.security import OAuth2PasswordRequestForm
-from auth.auth_handler import create_access_token
+from auth.auth_handler import create_access_token, get_current_user
 
 Base.metadata.create_all(bind=engine)
 
@@ -72,23 +70,14 @@ def get_geo_data(ip):
     except:
         return {}
 
-# token route
-@app.post("/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Replace this with DB user check
-    if form_data.username != "user" or form_data.password != "user123":
-        raise HTTPException(status_code=400, detail="Invalid credentials")
 
-    access_token = create_access_token(data={"sub": form_data.username})
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@app.get("/dashboard")
+@app.get("/current_user")
 def dashboard(current_user: User = Depends(get_current_user)):
     return {"message": f"Hello {current_user.username}, welcome to your dashboard!"}
 
 # Register websites 
 @app.post("/register")
-async def register_site(data: dict):
+async def register_site(data: dict, username: str = Depends(get_current_user)):
     db = SessionLocal()
     # domain = data.get("domain")
     raw_domain = data.get("domain")
@@ -132,7 +121,7 @@ def serve_tracker_script():
     return HTMLResponse(content=js_code, media_type="application/javascript")
 
 @app.post("/track")
-async def track(request: Request):
+async def track(request: Request, username: str = Depends(get_current_user)):
     data = await request.json()
     # print("📥 Incoming tracking data:", data)  # ✅ Debug
     origin = request.headers.get("origin")
@@ -184,7 +173,7 @@ async def track(request: Request):
 
 
 @app.get("/websites")
-async def get_websites():
+async def get_websites(username: str = Depends(get_current_user)):
     db = SessionLocal()
     websites = db.query(Website).all()
     db.close()
@@ -193,7 +182,7 @@ async def get_websites():
     return [{"domain": w.domain, "name": w.name} for w in websites]
 
 @app.get("/data/{name}")
-async def get_data(name: str):
+async def get_data(name: str, username: str = Depends(get_current_user)):
     db = SessionLocal()
     website = db.query(Website).filter_by(name=name).first()
     if not website:
