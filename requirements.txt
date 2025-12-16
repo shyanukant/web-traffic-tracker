@@ -48,7 +48,7 @@ typing_extensions==4.13.1
 tzdata==2025.2
 ua-parser==1.0.1
 ua-parser-builtins==0.18.0.post1
-urllib3==2.3.0
+urllib3==2.6.0
 user-agents==2.2.0
 uvicorn==0.34.0
 watchdog==6.0.0
